@@ -18,19 +18,10 @@ router
                 ctx.status = 400;
                 return;
             }
-            let duplicate;
 
-            duplicate = await User.findOne({ email: body.email });
+            const duplicate = await User.findOne({ email: body.email });
             if (duplicate) {
                 ctx.status = 409;
-                ctx.body = { error: 'duplicate', field: 'email' };
-                return;
-            }
-
-            duplicate = await User.findOne({ username: body.username });
-            if (duplicate) {
-                ctx.status = 409;
-                ctx.body = { error: 'duplicate', field: 'username' };
                 return;
             }
 
@@ -45,7 +36,9 @@ router
                 registrationToken,
                 password,
             });
-            ctx.body = await user.save();
+            await user.save();
+            delete user.password;
+            ctx.body = user;
 
             const transporter = Nodemailer.createTransport({
                 host: process.env.SMTP_HOST,
@@ -60,8 +53,8 @@ router
                 from: 'webmaster@arc-club-fribourg.ch',
                 to: user.email,
                 subject: 'Votre compte ACF-réservations',
-                text: `Bienvenue sur le système de réservation de l'arc club! Afin de valider votre compte merci de cliquer sur le lien suivant: ${process.env.FRONTEND_URL}/auth/confirm?token=${user.registrationToken}`,
-                html: `Bienvenue sur le système de réservation de l'arc club! <br>Afin de valider votre compte merci de cliquer sur le lien suivant: <a href="${process.env.FRONTEND_URL}/auth/confirm?token=${user.registrationToken}">confirmer mon compte</a>.`,
+                text: `Bienvenue sur le système de réservation de l'arc club! Afin de valider votre compte merci de cliquer sur le lien suivant: ${process.env.FRONTEND_URL}/validate?token=${user.registrationToken}`,
+                html: `Bienvenue sur le système de réservation de l'arc club! <br>Afin de valider votre compte merci de cliquer sur le lien suivant: <a href="${process.env.FRONTEND_URL}/validate?token=${user.registrationToken}">confirmer mon compte</a>.`,
             });
 
             ctx.status = 201;
@@ -86,7 +79,7 @@ router
 
         return new Promise((resolve, reject) => {
             JsonWebToken.sign({
-                user: user.email,
+                userId: user._id,
                 role: user.role,
                 exp: Math.floor(Date.now() / 1000) + (60 * 60),
             }, process.env.JWT_SECRET, (err, token) => {
@@ -104,14 +97,14 @@ router
         });
     })
 
-    .get('/confirm', async (ctx) => {
+    .get('/validate', async (ctx) => {
         ctx.assert(ctx.query.token, 400);
 
-        await User.findOneAndUpdate(
+        const user = await User.findOneAndUpdate(
             { registrationToken: ctx.query.token },
             { $unset: { registrationToken: '' } },
         );
-        ctx.status = 200;
+        ctx.status = user !== null ? 204 : 400;
     });
 
 

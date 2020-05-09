@@ -4,7 +4,7 @@ Mongoose.plugin((schema) => {
     schema.options.toJSON = {
         versionKey: false,
         transform(doc, ret) {
-            ret.id = ret._id;
+            ret.id = ret._id.toString();
             delete ret._id;
         },
     };

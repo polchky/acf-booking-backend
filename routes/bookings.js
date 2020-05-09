@@ -1,6 +1,5 @@
 const Router = require('koa-router');
-const constants = require('@constants');
-const { Booking, User } = require('@models');
+const { Booking, Config } = require('@models');
 const { auth, param } = require('@middlewares');
 
 const router = new Router({
@@ -21,14 +20,24 @@ router
 
     .post('/', async (ctx) => {
         try {
+            const config = await Config.findOne({});
             const { body } = ctx.request;
+
             // The user books for himself or is admin
             ctx.assert(ctx.state.user.role === 'admin' || ctx.state.user.id === body.userId, 403);
-            // The location is valid
-            ctx.assert(constants.quotas.locations[body.location] !== undefined, 400);
-            // The target is valid or empty
-            ctx.assert(constants.quotas.targets[body.target] !== undefined || !body.target, 400);
 
+            // The location is valid
+            const location = config.locations.find((l) => l._id === body.locationId);
+            ctx.assert(location !== undefined, 400);
+
+            // The target is empty or valid
+            const target = location.targets.find((t) => t._id === body.targetId);
+            ctx.assert(body.targetId === undefined || target !== undefined, 400);
+
+            // The duration is valid
+            const duration = config.durations.find((d) => d.minutes === body.duration);
+            ctx.assert(duration !== undefined, 400);
+/*
             const today = new Date();
             today.setHours(0, 0, 0, 0);
 
@@ -102,14 +111,15 @@ router
             const booking = new Booking(body);
             await booking.save();
             ctx.body = booking;
-
+*/
             ctx.status = 201;
         } catch (err) {
             ctx.status = 400;
         }
     })
 
-    .delete('/:bookingId', auth.or(auth.hasUserId(), auth.hasRole('admin')), async (ctx) => {
+    .delete('/:bookingId', async (ctx) => {
+        ctx.assert(ctx.state.user.role === 'admin' || ctx.state.user.id === ctx.booking.userId, 403);
         await Booking.deleteOne({ _id: ctx.booking.id });
         ctx.status = 204;
     });

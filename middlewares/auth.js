@@ -31,7 +31,7 @@ const auth = {
     },
 
     hasUserId: (userId) => (ctx, next) => {
-        const res = ctx.state.user.id === (userId || ctx.user.id);
+        const res = ctx.state.user.userId === (userId || ctx.user.id);
         return resolve(ctx, next, res);
     },
 

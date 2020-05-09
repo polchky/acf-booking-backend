@@ -23,6 +23,19 @@ router
         ctx.body = ctx.user;
     })
 
+    .put('/:userId', auth.or([auth.hasRole('admin'), auth.hasUserId()]), async (ctx) => {
+        const { username } = ctx.request.body;
+        ctx.assert(!!username && username.length !== 0, 400);
+        const user = await User.findOneAndUpdate(
+            { _id: ctx.user.id },
+            { $set: { username } },
+            { new: true },
+        );
+        ctx.assert(user !== null, 400);
+        delete user.password;
+        ctx.body = user;
+    })
+
     .delete('/:userId', auth.or([auth.hasUserId(), auth.hasRole('admin')]), async (ctx) => {
         await User.deleteOne({ _id: ctx.user.id });
         ctx.status = 204;
