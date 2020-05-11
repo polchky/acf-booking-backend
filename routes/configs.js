@@ -7,13 +7,12 @@ const router = new Router({
 });
 
 router
-    .use(auth.jwt)
 
     .get('/', async (ctx) => {
         ctx.body = await Config.findOne({});
     })
 
-    .put('/', auth.hasRole('admin'), async (ctx) => {
+    .put('/', auth.jwt, auth.hasRole('admin'), async (ctx) => {
         try {
             ctx.body = await Config.findOneAndUpdate(
                 {},

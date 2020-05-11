@@ -42,6 +42,7 @@
     "@routes": "./routes",
     "@models": "./models",
     "@middlewares": "./middlewares",
-    "@database": "./database"
+    "@database": "./database",
+    "@utils": "./utils"
   }
 }

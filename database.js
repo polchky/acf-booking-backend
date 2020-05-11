@@ -6,6 +6,7 @@ Mongoose.plugin((schema) => {
         transform(doc, ret) {
             ret.id = ret._id.toString();
             delete ret._id;
+            if (ret.password) delete ret.password;
         },
     };
 });
