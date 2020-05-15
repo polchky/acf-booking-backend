@@ -4,11 +4,11 @@ const { auth, param } = require('@middlewares');
 const utils = require('@utils');
 
 const getAvailabilities = async (date, locationObject, role) => {
-
     // Init availabilities object
     const targets = ['default'];
     if (locationObject.targets) targets.push(...locationObject.targets.map((t) => t.distance));
     const av = {};
+    let juraPresence = {};
 
     for (let target = 0; target < targets.length; target += 1) {
         const targetK = targets[target];
@@ -20,18 +20,22 @@ const getAvailabilities = async (date, locationObject, role) => {
             targetCapacity = locationObject.capacity;
         }
         av[targetK] = {};
+        juraPresence[targetK] = {};
         const time = new Date();
         time.setHours(7, 0, 0, 0);
         for (let i = 7; i <= 22; i += 0.5) {
             const timeK = utils.getHM(time);
             time.setMinutes(time.getMinutes() + 30);
             av[targetK][timeK] = {};
+            juraPresence[targetK][timeK] = {};
             for (let minutes = 60; minutes <= 120; minutes += 30) {
                 const durationK = utils.getDuration(minutes);
                 av[targetK][timeK][durationK] = targetCapacity;
+                juraPresence[targetK][timeK][durationK] = false;
             }
         }
     }
+    juraPresence = juraPresence.default;
 
     // Get bookings for selected day
     const min = new Date(date);
@@ -47,8 +51,6 @@ const getAvailabilities = async (date, locationObject, role) => {
     // Decrement availabilities
     for (let i = 0; i < bookings.length; i += 1) {
         const target = bookings[i].target || 'default';
-        const time = utils.getHM(bookings[i].time);
-        const duration = utils.getDuration(bookings[i].duration);
 
         // Decrement present and future times
         for (let j = 0; j < bookings[i].duration; j += 30) {
@@ -58,6 +60,19 @@ const getAvailabilities = async (date, locationObject, role) => {
             if (av[target][realTimeString] !== undefined) {
                 for (let k = 60; k <= 120; k += 30) {
                     av[target][realTimeString][utils.getDuration(k)] -= 1;
+                    if (
+                        locationObject.name === 'Guintzet'
+                        && target !== 'default'
+                    ) {
+                        av.default[realTimeString][utils.getDuration(k)] -= 1;
+                    }
+                }
+
+                // Log Jura presence
+                if (locationObject.name === 'Jura' && j < bookings[i].duration - 30) {
+                    for (let k = 60; k <= bookings[i].duration - j; k += 30) {
+                        juraPresence[realTimeString][utils.getDuration(k)] = true;
+                    }
                 }
             }
         }
@@ -75,7 +90,7 @@ const getAvailabilities = async (date, locationObject, role) => {
         }
     }
 
-    // Remove full days and Jura empty days
+    // Cleanup round
     for (let i = 0; i < targets.length; i += 1) {
         const times = Object.keys(av[targets[i]]);
         for (let j = 0; j < times.length; j += 1) {
@@ -83,11 +98,29 @@ const getAvailabilities = async (date, locationObject, role) => {
             for (let k = 0; k < durations.length; k += 1) {
                 // Remove empty session for Jura
                 if (
-                    targets[i] === 'Jura'
+                    locationObject.name === 'Jura'
                     && role === 'user'
-                    && av[targets[i]][times[j]][durations[k]] === locationObject.capacity
+                    && juraPresence[times[j]][durations[k]] === false
                 ) {
                     av[targets[i]][times[j]][durations[k]] = 0;
+                }
+                // Decrease targets for Guintzet
+                if (
+                    locationObject.name === 'Guintzet'
+                    && targets[i] !== 'default'
+                ) {
+                    // Default target item is empty
+                    if (
+                        av.default === undefined
+                        || av.default[times[j]] === undefined
+                        || av.default[times[j]][durations[k]] === undefined
+                    ) {
+                        delete av[targets[i]][times[j]][durations[k]];
+                    } else if (
+                        av.default[times[j]][durations[k]] < av[targets[i]][times[j]][durations[k]]
+                    ) {
+                        av[targets[i]][times[j]][durations[k]] = av.default[times[j]][durations[k]];
+                    }
                 }
                 // Remove full durations
                 if (av[targets[i]][times[j]][durations[k]] <= 0) {
@@ -143,7 +176,6 @@ router
         ctx.body = await Booking.find({
             time: { $gte: from, $lte: to },
         }).populate('user', 'username');
-
     })
 
     .get('/available', async (ctx) => {

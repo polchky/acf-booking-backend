@@ -53,8 +53,8 @@ router
                 from: 'webmaster@arc-club-fribourg.ch',
                 to: user.email,
                 subject: 'Votre compte ACF-réservations',
-                text: `Bienvenue sur le système de réservation de l'arc club! Afin de valider votre compte merci de cliquer sur le lien suivant: ${process.env.FRONTEND_URL}/validate?token=${user.registrationToken}`,
-                html: `Bienvenue sur le système de réservation de l'arc club! <br>Afin de valider votre compte merci de cliquer sur le lien suivant: <a href="${process.env.FRONTEND_URL}/validate?token=${user.registrationToken}">confirmer mon compte</a>.`,
+                text: `Bienvenue sur le système de réservation de l'arc club! Afin de valider votre compte merci de cliquer sur le lien suivant: ${process.env.FRONTEND_URL}/#/validate?token=${user.registrationToken}`,
+                html: `Bienvenue sur le système de réservation de l'arc club! <br>Afin de valider votre compte merci de cliquer sur le lien suivant: <a href="${process.env.FRONTEND_URL}/#/validate?token=${user.registrationToken}">confirmer mon compte</a>.`,
             });
 
             ctx.status = 201;

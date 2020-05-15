@@ -1,5 +1,8 @@
 require('module-alias/register');
 require('@database');
+
+process.env.TZ = 'Europe/Zurich';
+
 const Koa = require('koa');
 const Cors = require('@koa/cors');
 const BodyParser = require('koa-bodyparser');
