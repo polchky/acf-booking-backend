@@ -1,7 +1,6 @@
 require('module-alias/register');
 require('@database');
 const Koa = require('koa');
-const Cors = require('@koa/cors');
 const BodyParser = require('koa-bodyparser');
 const Router = require('@routes');
 
@@ -14,7 +13,6 @@ const parser = BodyParser({
 });
 
 app
-    .use(Cors())
     .use(parser)
     .use(Router())
     .listen(process.env.PORT);
