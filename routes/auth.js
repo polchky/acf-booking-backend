@@ -1,8 +1,8 @@
 const JsonWebToken = require('jsonwebtoken');
 const Bcrypt = require('bcrypt');
 const Router = require('koa-router');
-const Nodemailer = require('nodemailer');
 
+const { getUser, sendEmail, validate } = require('@utils');
 const { User } = require('@models');
 
 const router = new Router({
@@ -14,16 +14,14 @@ router
     .post('/register', async (ctx) => {
         try {
             const { body } = ctx.request;
-            if (!body.password) {
-                ctx.status = 400;
-                return;
-            }
+            ctx.assert(validate.password(body.password), 400);
+
+            ctx.assert(validate.string(body.username), 400);
+
+            ctx.assert(validate.email(body.email), 400);
 
             const duplicate = await User.findOne({ email: body.email });
-            if (duplicate) {
-                ctx.status = 409;
-                return;
-            }
+            ctx.assert(duplicate === null, 409);
 
             const password = await Bcrypt.hash(body.password, 10);
             const registrationToken = Math.random().toString(36).substring(2, 15)
@@ -37,27 +35,15 @@ router
                 password,
             });
             await user.save();
-            delete user.password;
-            ctx.body = user;
+            ctx.user = user;
 
-            const transporter = Nodemailer.createTransport({
-                host: process.env.SMTP_HOST,
-                port: process.env.SMTP_PORT,
-                secure: process.env.SMTP_PORT === 465,
-                auth: {
-                    user: process.env.SMTP_USER,
-                    pass: process.env.SMTP_PASSWORD,
-                },
-            });
-            await transporter.sendMail({
-                from: 'webmaster@arc-club-fribourg.ch',
-                to: user.email,
-                subject: 'Votre compte ACF-réservations',
-                text: `Bienvenue sur le système de réservation de l'arc club! Afin de valider votre compte merci de cliquer sur le lien suivant: ${process.env.FRONTEND_URL}/#/validate?token=${user.registrationToken}`,
-                html: `Bienvenue sur le système de réservation de l'arc club! <br>Afin de valider votre compte merci de cliquer sur le lien suivant: <a href="${process.env.FRONTEND_URL}/#/validate?token=${user.registrationToken}">confirmer mon compte</a>.`,
-            });
-
-            ctx.status = 201;
+            await sendEmail(
+                user.email,
+                'Votre compte ACF-réservations',
+                `Bienvenue sur le système de réservation de l'arc club! <br>Afin de valider votre compte merci de cliquer sur le lien suivant: <a href="${process.env.FRONTEND_URL}/#/validate?token=${user.registrationToken}">confirmer mon compte</a>.`,
+                `Bienvenue sur le système de réservation de l'arc club! Afin de valider votre compte merci de cliquer sur le lien suivant: ${process.env.FRONTEND_URL}/#/validate?token=${user.registrationToken}`,
+            );
+            ctx.status = 204;
         } catch (err) {
             ctx.status = 400;
         }
@@ -68,10 +54,15 @@ router
 
         ctx.assert(body.password, 400);
 
-        const user = await User.findOne({
-            email: ctx.request.body.email,
-            registrationToken: { $exists: false },
-        });
+        const user = await User.findOneAndUpdate(
+            {
+                email: ctx.request.body.email,
+                registrationToken: { $exists: false },
+            },
+            {
+                $unset: { passwordToken: true },
+            },
+        );
         ctx.assert(user !== null, 404);
 
         const match = await Bcrypt.compare(ctx.request.body.password, user.password);
@@ -97,15 +88,50 @@ router
         });
     })
 
-    .get('/validate', async (ctx) => {
-        ctx.assert(ctx.query.token, 400);
-
-        const user = await User.findOneAndUpdate(
+    .post('/validate', async (ctx) => {
+        ctx.assert(validate.string(ctx.query.token), 400);
+        ctx.user = await User.findOneAndUpdate(
             { registrationToken: ctx.query.token },
             { $unset: { registrationToken: '' } },
         );
-        ctx.status = user !== null ? 204 : 400;
-    });
+        ctx.assert(ctx.user !== null, 400);
+        return getUser(ctx);
+    })
 
+    .post('/password/set', async (ctx) => {
+        const { body } = ctx.request;
+        ctx.assert(validate.password(body.password), 400);
+        ctx.assert(validate.string(ctx.query.token), 400);
+        const password = await Bcrypt.hash(body.password, 10);
+        ctx.user = await User.findOneAndUpdate(
+            { passwordToken: ctx.query.token },
+            {
+                $unset: { passwordToken: true },
+                $set: { password },
+            },
+        );
+        ctx.assert(ctx.user !== null, 400);
+        return getUser(ctx);
+    })
+
+    .post('/password/reset', async (ctx) => {
+        const { email } = ctx.request.body;
+        ctx.assert(email !== undefined, 400);
+        const user = await User.findOne({ email });
+        ctx.assert(user !== null, 404);
+
+        const passwordToken = Math.random().toString(36).substring(2, 15)
+            + Math.random().toString(36).substring(2, 15);
+        user.passwordToken = passwordToken;
+        await user.save();
+
+        await sendEmail(
+            user.email,
+            'ACF-réservations: mot de passe oublié',
+            `Veuillez cliquer sur le lien suivant afin de définir un nouveau mot de passe: <a href="${process.env.FRONTEND_URL}/#/reset?token=${user.passwordToken}">définir un nouveau mot de passe</a>.`,
+            `Veuillez cliquer sur le lien suivant afin de définir un nouveau mot de passe: ${process.env.FRONTEND_URL}/#/reset?token=${user.passwordToken}`,
+        );
+        ctx.status = 204;
+    });
 
 module.exports = router;

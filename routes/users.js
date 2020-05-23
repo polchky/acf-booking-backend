@@ -1,7 +1,9 @@
 const Router = require('koa-router');
+const Bcrypt = require('bcrypt');
+
+const { getUser, validate } = require('@utils');
 const { User } = require('@models');
 const { auth, param } = require('@middlewares');
-
 
 const router = new Router({
     prefix: '/users',
@@ -18,21 +20,36 @@ router
         });
     })
 
-    .get('/:userId', auth.hasUserId(), (ctx) => {
-        delete ctx.user.password;
-        ctx.body = ctx.user;
+    .get('/:userId', auth.hasUserId(), async (ctx) => {
+        await getUser(ctx);
     })
 
     .put('/:userId', auth.or([auth.hasRole('admin'), auth.hasUserId()]), async (ctx) => {
-        const { username } = ctx.request.body;
-        ctx.assert(!!username && username.length !== 0, 400);
-        const user = await User.findOneAndUpdate(
-            { _id: ctx.user.id },
-            { $set: { username } },
-            { new: true },
+        const { body } = ctx.request;
+        const set = {};
+
+        // Change username
+        if (validate.string(body.username)) {
+            set.username = body.username;
+        }
+
+        // Change password
+        if (validate.password(body.password) && validate.password(body.newPassword)) {
+            // Check password validity
+            const match = Bcrypt.compare(body.password, ctx.user.password);
+            ctx.assert(match, 400);
+            set.password = await Bcrypt.hash(body.newPassword, 10);
+        }
+
+        const user = await User.findByIdAndUpdate(
+            ctx.state.user.userId,
+            set,
+            {
+                new: true,
+                select: 'username email',
+            },
         );
         ctx.assert(user !== null, 400);
-        delete user.password;
         ctx.body = user;
     })
 
