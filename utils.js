@@ -45,7 +45,7 @@ const utils = {
             },
         });
         await transporter.sendMail({
-            from: 'webmaster@arc-club-fribourg.ch',
+            from: process.env.SMTP_USER,
             to,
             subject,
             html,

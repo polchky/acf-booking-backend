@@ -1,4 +1,6 @@
 const Router = require('koa-router');
+
+const logger = require('@logger');
 const { Booking, Config } = require('@models');
 const { auth, param } = require('@middlewares');
 const utils = require('@utils');
@@ -192,7 +194,12 @@ router
         const locationObject = config.locations.find((l) => l.name === location);
         ctx.assert(locationObject !== null, 400);
 
-        ctx.body = await getAvailabilities(date, locationObject, ctx.state.user.role);
+        try {
+            ctx.body = await getAvailabilities(date, locationObject, ctx.state.user.role);
+        } catch (err) {
+            ctx.status = 500;
+            logger.error({ err, ctx });
+        }
     })
 
     .post('/', async (ctx) => {
@@ -231,6 +238,7 @@ router
             ctx.status = 204;
         } catch (err) {
             ctx.status = 400;
+            logger.error({ err, ctx });
         }
     })
 

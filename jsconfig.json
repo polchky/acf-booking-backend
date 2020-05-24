@@ -10,7 +10,8 @@
             "@routes": ["./routes"],
             "@routes/*": ["./routes/*"],
             "@database": ["./database"],
-            "@utils": ["./utils"]
+            "@utils": ["./utils"],
+            "@logger": ["./logger"]
         }
     },
     "exclude": ["node_modules"]

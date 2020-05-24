@@ -2,6 +2,7 @@ const JsonWebToken = require('jsonwebtoken');
 const Bcrypt = require('bcrypt');
 const Router = require('koa-router');
 
+const logger = require('@logger');
 const { getUser, sendEmail, validate } = require('@utils');
 const { User } = require('@models');
 
@@ -12,17 +13,17 @@ const router = new Router({
 router
 
     .post('/register', async (ctx) => {
+        const { body } = ctx.request;
+        ctx.assert(validate.password(body.password), 400);
+
+        ctx.assert(validate.string(body.username), 400);
+
+        ctx.assert(validate.email(body.email), 400);
+
+        const duplicate = await User.findOne({ email: body.email });
+        ctx.assert(duplicate === null, 409);
+
         try {
-            const { body } = ctx.request;
-            ctx.assert(validate.password(body.password), 400);
-
-            ctx.assert(validate.string(body.username), 400);
-
-            ctx.assert(validate.email(body.email), 400);
-
-            const duplicate = await User.findOne({ email: body.email });
-            ctx.assert(duplicate === null, 409);
-
             const password = await Bcrypt.hash(body.password, 10);
             const registrationToken = Math.random().toString(36).substring(2, 15)
                 + Math.random().toString(36).substring(2, 15);
@@ -45,7 +46,8 @@ router
             );
             ctx.status = 204;
         } catch (err) {
-            ctx.status = 400;
+            ctx.status = 500;
+            logger.error({ err, ctx });
         }
     })
 
@@ -120,18 +122,23 @@ router
         const user = await User.findOne({ email });
         ctx.assert(user !== null, 404);
 
-        const passwordToken = Math.random().toString(36).substring(2, 15)
-            + Math.random().toString(36).substring(2, 15);
-        user.passwordToken = passwordToken;
-        await user.save();
+        try {
+            const passwordToken = Math.random().toString(36).substring(2, 15)
+                + Math.random().toString(36).substring(2, 15);
+            user.passwordToken = passwordToken;
+            await user.save();
 
-        await sendEmail(
-            user.email,
-            'ACF-réservations: mot de passe oublié',
-            `Veuillez cliquer sur le lien suivant afin de définir un nouveau mot de passe: <a href="${process.env.FRONTEND_URL}/#/reset?token=${user.passwordToken}">définir un nouveau mot de passe</a>.`,
-            `Veuillez cliquer sur le lien suivant afin de définir un nouveau mot de passe: ${process.env.FRONTEND_URL}/#/reset?token=${user.passwordToken}`,
-        );
-        ctx.status = 204;
+            await sendEmail(
+                user.email,
+                'ACF-réservations: mot de passe oublié',
+                `Veuillez cliquer sur le lien suivant afin de définir un nouveau mot de passe: <a href="${process.env.FRONTEND_URL}/#/reset?token=${user.passwordToken}">définir un nouveau mot de passe</a>.`,
+                `Veuillez cliquer sur le lien suivant afin de définir un nouveau mot de passe: ${process.env.FRONTEND_URL}/#/reset?token=${user.passwordToken}`,
+            );
+            ctx.status = 204;
+        } catch (err) {
+            ctx.status = 500;
+            logger.error({ err, ctx });
+        }
     });
 
 module.exports = router;
