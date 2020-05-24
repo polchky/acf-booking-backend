@@ -30,7 +30,7 @@ const utils = {
     async getUser(ctx) {
         ctx.body = await User.findById(
             ctx.user.id,
-            'username email',
+            'username email role',
         );
     },
 
