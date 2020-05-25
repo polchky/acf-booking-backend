@@ -28,6 +28,11 @@ router
         const { body } = ctx.request;
         const set = {};
 
+        // Change role
+        if (ctx.state.user.role === 'admin' && validate.string(body.role)) {
+            set.role = body.role;
+        }
+
         // Change username
         if (validate.string(body.username)) {
             set.username = body.username;
@@ -42,7 +47,7 @@ router
         }
 
         const user = await User.findByIdAndUpdate(
-            ctx.state.user.userId,
+            ctx.user.id,
             set,
             {
                 new: true,
