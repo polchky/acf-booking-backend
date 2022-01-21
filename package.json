@@ -27,7 +27,7 @@
     "koa-combine-routers": "^4.0.2",
     "koa-jwt": "^3.6.0",
     "koa-router": "^8.0.8",
-    "log4js": "^6.2.1",
+    "log4js": "^6.4.0",
     "module-alias": "^2.2.2",
     "mongoose": "^5.9.12",
     "nodemailer": "^6.4.6"
